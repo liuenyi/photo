@@ -1,0 +1,39 @@
+<view class="login-container">
+  <view class="content">
+  <view class="logo-section">
+      <text class="app-title">🎈 咱家的记忆</text>
+      <text class="app-subtitle">请输入4位访问密码</text>
+  </view>
+  
+    <view class="password-section">
+      <input 
+        class="password-input" 
+        type="number"
+        maxlength="4"
+        placeholder="••••" 
+        value="{{password}}"
+        bindinput="onPasswordInput"
+        focus="{{inputFocus}}"
+      />
+      
+      <view class="password-dots" bindtap="focusInput">
+        <view class="dot {{password.length >= 1 ? 'filled' : ''}}"></view>
+        <view class="dot {{password.length >= 2 ? 'filled' : ''}}"></view>
+        <view class="dot {{password.length >= 3 ? 'filled' : ''}}"></view>
+        <view class="dot {{password.length >= 4 ? 'filled' : ''}}"></view>
+      </view>
+      
+      <view class="loading" wx:if="{{loginLoading}}">
+        <text class="loading-text">验证中...</text>
+    </view>
+    
+      <view class="error-tips" wx:if="{{showError}}">
+        <text class="error-text">❌ 密码错误，请重新输入 {{showError}}</text>
+      </view>
+      
+      <view class="input-tip">
+        <text class="tip-text">点击上方圆点重新输入</text>
+      </view>
+    </view>
+  </view>
+</view> 

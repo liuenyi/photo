@@ -1,0 +1,222 @@
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from PIL import Image
+import os
+import uuid
+from datetime import datetime
+from typing import Tuple, List
+
+from ..database import get_db, Photo, Album
+from ..schemas import UploadResponse, MessageResponse
+from ..config import settings
+from .photos import photo_to_response
+
+router = APIRouter()
+
+
+def validate_file(file: UploadFile) -> None:
+    """验证上传文件"""
+    # 检查文件大小
+    if file.size and file.size > settings.max_file_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文件大小超过限制 ({settings.max_file_size / 1024 / 1024}MB)"
+        )
+    
+    # 检查文件扩展名
+    if file.filename:
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        if file_ext not in settings.allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"不支持的文件类型。支持的类型: {', '.join(settings.allowed_extensions)}"
+            )
+
+
+async def save_uploaded_file(file: UploadFile) -> Tuple[str, str, int, int, int]:
+    """保存上传的文件并返回文件信息"""
+    # 生成唯一文件名
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(settings.upload_dir, filename)
+    
+    # 确保上传目录存在
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    
+    # 保存文件
+    with open(file_path, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+    
+    file_size = len(content)
+    
+    # 获取图片尺寸
+    width, height = None, None
+    try:
+        with Image.open(file_path) as img:
+            width, height = img.size
+            
+            # 生成缩略图
+            thumbnail_size = (300, 300)
+            img.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+            thumbnail_path = os.path.join(settings.upload_dir, f"thumb_{filename}")
+            img.save(thumbnail_path, optimize=True, quality=85)
+            
+    except Exception as e:
+        print(f"处理图片时出错: {e}")
+    
+    return filename, file_path, file_size, width, height
+
+
+@router.post("/", response_model=UploadResponse, summary="上传照片")
+async def upload_photo(
+    album_id: int = Form(..., description="相册ID"),
+    description: str = Form(None, description="照片描述"),
+    file: UploadFile = File(..., description="照片文件"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    上传照片到指定相册
+    
+    - **album_id**: 目标相册ID
+    - **description**: 照片描述（可选）
+    - **file**: 照片文件（支持 jpg, jpeg, png, gif, webp）
+    """
+    # 验证文件
+    validate_file(file)
+    
+    # 检查相册是否存在
+    album_result = await db.execute(
+        select(Album).where(Album.id == album_id)
+    )
+    album = album_result.scalar_one_or_none()
+    
+    if not album:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="相册不存在"
+        )
+    
+    try:
+        # 保存文件
+        filename, file_path, file_size, width, height = await save_uploaded_file(file)
+        
+        # 创建数据库记录
+        photo = Photo(
+            album_id=album_id,
+            filename=filename,
+            original_filename=file.filename,
+            file_path=file_path,
+            file_size=file_size,
+            width=width,
+            height=height,
+            description=description
+        )
+        
+        db.add(photo)
+        await db.commit()
+        await db.refresh(photo)
+        
+        return UploadResponse(
+            message="照片上传成功",
+            photo=photo_to_response(photo)
+        )
+        
+    except Exception as e:
+        # 如果数据库操作失败，删除已保存的文件
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"上传失败: {str(e)}"
+        )
+
+
+@router.post("/multiple", summary="批量上传照片")
+async def upload_multiple_photos(
+    album_id: int = Form(..., description="相册ID"),
+    files: List[UploadFile] = File(..., description="照片文件列表"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    批量上传照片到指定相册
+    
+    - **album_id**: 目标相册ID
+    - **files**: 照片文件列表
+    """
+    # 检查相册是否存在
+    album_result = await db.execute(
+        select(Album).where(Album.id == album_id)
+    )
+    album = album_result.scalar_one_or_none()
+    
+    if not album:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="相册不存在"
+        )
+    
+    if len(files) > 1000:  # 限制单次上传数量
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="单次最多上传1000张照片"
+        )
+    
+    successful_uploads = []
+    failed_uploads = []
+    
+    for file in files:
+        try:
+            # 验证文件
+            validate_file(file)
+            
+            # 保存文件
+            filename, file_path, file_size, width, height = await save_uploaded_file(file)
+            
+            # 创建数据库记录
+            photo = Photo(
+                album_id=album_id,
+                filename=filename,
+                original_filename=file.filename,
+                file_path=file_path,
+                file_size=file_size,
+                width=width,
+                height=height
+            )
+            
+            db.add(photo)
+            successful_uploads.append({
+                "filename": file.filename,
+                "status": "success"
+            })
+            
+        except Exception as e:
+            failed_uploads.append({
+                "filename": file.filename,
+                "status": "failed",
+                "error": str(e)
+            })
+    
+    # 提交成功的上传
+    await db.commit()
+    
+    return {
+        "message": f"批量上传完成。成功: {len(successful_uploads)}, 失败: {len(failed_uploads)}",
+        "successful": successful_uploads,
+        "failed": failed_uploads
+    }
+
+
+@router.get("/info", summary="获取上传配置")
+async def get_upload_info():
+    """
+    获取上传相关配置信息
+    """
+    return {
+        "max_file_size": settings.max_file_size,
+        "max_file_size_mb": settings.max_file_size / 1024 / 1024,
+        "allowed_extensions": settings.allowed_extensions,
+        "upload_dir": settings.upload_dir
+    } 

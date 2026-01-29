@@ -1,0 +1,450 @@
+/* 🎈 六一儿童节主题样式 🎈 */
+
+/* 全局样式 */
+page {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 8s ease infinite;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  line-height: 1.6;
+  color: #374151;
+  overflow-x: hidden;
+}
+
+/* 彩虹背景动画 */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 六一节日装饰元素 */
+.festival-decoration {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.balloon {
+  position: absolute;
+  animation: float 6s ease-in-out infinite;
+}
+
+.balloon::before {
+  content: "🎈";
+  font-size: 40rpx;
+  display: block;
+}
+
+.balloon-1 {
+  top: 10%;
+  left: 5%;
+  animation-delay: 0s;
+}
+
+.balloon-2 {
+  top: 20%;
+  right: 8%;
+  animation-delay: 2s;
+}
+
+.balloon-3 {
+  top: 60%;
+  left: 10%;
+  animation-delay: 4s;
+}
+
+.star {
+  position: absolute;
+  animation: twinkle 2s ease-in-out infinite alternate;
+}
+
+.star::before {
+  content: "⭐";
+  font-size: 24rpx;
+  display: block;
+}
+
+.star-1 {
+  top: 15%;
+  left: 20%;
+  animation-delay: 0.5s;
+}
+
+.star-2 {
+  top: 30%;
+  right: 15%;
+  animation-delay: 1.5s;
+}
+
+.star-3 {
+  top: 50%;
+  left: 70%;
+  animation-delay: 2.5s;
+}
+
+.confetti {
+  position: absolute;
+  animation: fall 3s linear infinite;
+}
+
+.confetti::before {
+  content: "🎉";
+  font-size: 32rpx;
+  display: block;
+}
+
+.confetti-1 {
+  top: -50rpx;
+  left: 25%;
+  animation-delay: 0s;
+}
+
+.confetti-2 {
+  top: -50rpx;
+  left: 50%;
+  animation-delay: 1s;
+}
+
+.confetti-3 {
+  top: -50rpx;
+  left: 75%;
+  animation-delay: 2s;
+}
+
+/* 动画定义 */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-20rpx) rotate(5deg); }
+}
+
+@keyframes twinkle {
+  0% { opacity: 0.3; transform: scale(0.8) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1.2) rotate(180deg); }
+}
+
+@keyframes fall {
+  0% { transform: translateY(-100rpx) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(1000rpx) rotate(360deg); opacity: 0; }
+}
+
+/* 彩虹边框效果 */
+.rainbow-border {
+  position: relative;
+  overflow: hidden;
+}
+
+.rainbow-border::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #ff0000, #ff8000, #ffff00, #80ff00, #00ff00, #00ff80, #00ffff, #0080ff, #0000ff, #8000ff, #ff0080, #ff0000);
+  background-size: 400% 400%;
+  animation: rainbowRotate 3s linear infinite;
+  border-radius: inherit;
+  z-index: -1;
+}
+
+@keyframes rainbowRotate {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+}
+
+/* 全局容器 */
+.container {
+  padding: 0;
+  margin: 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* 按钮样式重置 */
+button {
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: inherit;
+  color: inherit;
+}
+
+button::after {
+  border: none;
+}
+
+/* 图片样式 */
+image {
+  display: block;
+  max-width: 100%;
+}
+
+/* 文本样式 */
+text {
+  display: inline;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+/* 通用工具类 */
+.flex {
+  display: flex;
+}
+
+.flex-column {
+  flex-direction: column;
+}
+
+.flex-center {
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  justify-content: space-between;
+}
+
+.flex-around {
+  justify-content: space-around;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-right {
+  text-align: right;
+}
+
+/* 间距工具类 */
+.m-0 { margin: 0; }
+.mt-1 { margin-top: 8rpx; }
+.mt-2 { margin-top: 16rpx; }
+.mt-3 { margin-top: 24rpx; }
+.mb-1 { margin-bottom: 8rpx; }
+.mb-2 { margin-bottom: 16rpx; }
+.mb-3 { margin-bottom: 24rpx; }
+.ml-1 { margin-left: 8rpx; }
+.ml-2 { margin-left: 16rpx; }
+.mr-1 { margin-right: 8rpx; }
+.mr-2 { margin-right: 16rpx; }
+
+.p-0 { padding: 0; }
+.pt-1 { padding-top: 8rpx; }
+.pt-2 { padding-top: 16rpx; }
+.pt-3 { padding-top: 24rpx; }
+.pb-1 { padding-bottom: 8rpx; }
+.pb-2 { padding-bottom: 16rpx; }
+.pb-3 { padding-bottom: 24rpx; }
+.pl-1 { padding-left: 8rpx; }
+.pl-2 { padding-left: 16rpx; }
+.pr-1 { padding-right: 8rpx; }
+.pr-2 { padding-right: 16rpx; }
+
+/* 六一儿童节配色 */
+.text-primary { color: #ff6b9d; }
+.text-secondary { color: #a8e6cf; }
+.text-success { color: #4ecdc4; }
+.text-warning { color: #ffe66d; }
+.text-danger { color: #ff8b94; }
+.text-muted { color: #b4a7d6; }
+
+.bg-primary { 
+  background: linear-gradient(135deg, #ff6b9d 0%, #c44569 100%);
+}
+.bg-light { 
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+}
+.bg-white { 
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(15px);
+}
+
+/* 圆角工具类 */
+.rounded { border-radius: 16rpx; }
+.rounded-lg { border-radius: 24rpx; }
+.rounded-xl { border-radius: 32rpx; }
+.rounded-full { border-radius: 50%; }
+
+/* 儿童节主题阴影 */
+.shadow-sm {
+  box-shadow: 0 4rpx 15rpx rgba(255, 107, 157, 0.2);
+}
+
+.shadow {
+  box-shadow: 0 12rpx 35rpx rgba(255, 107, 157, 0.25);
+}
+
+.shadow-lg {
+  box-shadow: 0 20rpx 60rpx rgba(255, 107, 157, 0.3);
+}
+
+/* 六一节日动画 */
+.festival-bounce {
+  animation: festivalBounce 2s ease-in-out infinite;
+}
+
+.festival-wiggle {
+  animation: festivalWiggle 1.5s ease-in-out infinite;
+}
+
+.festival-pulse {
+  animation: festivalPulse 2s ease-in-out infinite;
+}
+
+@keyframes festivalBounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10rpx); }
+  60% { transform: translateY(-5rpx); }
+}
+
+@keyframes festivalWiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+@keyframes festivalPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* 动画工具类 */
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+.zoom-in {
+  animation: zoomIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 响应式断点 */
+@media (max-width: 750rpx) {
+  .sm-hidden {
+    display: none !important;
+  }
+}
+
+/* 安全区域适配 */
+.safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 高DPI屏幕适配 */
+@media (-webkit-min-device-pixel-ratio: 2) {
+  .retina-border::after {
+    transform: scale(0.5);
+    transform-origin: 0 0;
+  }
+}
+
+/* 长按选择禁用 */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.btn-primary {
+  background-color: #1AAD19;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  margin: 10px 0;
+}
+
+.btn-primary:active {
+  background-color: #179b16;
+}
+
+.card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.text-gray {
+  color: #999;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+} 

@@ -1,0 +1,22 @@
+<view class="debug-container">
+  <view class="debug-title">🔧 调试信息</view>
+  
+  <view class="debug-section">
+    <text class="debug-label">登录状态:</text>
+    <text class="debug-value">{{loginStatus}}</text>
+  </view>
+  
+  <view class="debug-section">
+    <text class="debug-label">访问令牌:</text>
+    <text class="debug-value">{{tokenInfo}}</text>
+  </view>
+  
+  <view class="debug-section">
+    <text class="debug-label">缓存信息:</text>
+    <text class="debug-value">{{cacheInfo}}</text>
+  </view>
+  
+  <button bindtap="clearAllCache" class="debug-btn">清除所有缓存</button>
+  <button bindtap="testLogin" class="debug-btn">测试登录</button>
+  <button bindtap="goToLogin" class="debug-btn">前往登录页</button>
+</view> 

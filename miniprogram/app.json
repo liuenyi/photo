@@ -1,0 +1,27 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/login/login", 
+    "pages/album/album"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#ff6b9d",
+    "navigationBarTitleText": "🎈 咱家的记忆",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f0f8ff",
+    "enablePullDownRefresh": true,
+    "onReachBottomDistance": 50
+  },
+  "requiredPrivateInfos": [
+    "chooseLocation"
+  ],
+  "permission": {
+    "scope.userLocation": {
+      "desc": "你的位置信息将用于地理位置标记"
+    }
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+} 

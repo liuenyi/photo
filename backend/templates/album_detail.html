@@ -1,0 +1,840 @@
+{% extends "base.html" %}
+
+{% block page_title %}{{ album.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 批量选择相关样式 */
+.photo-checkbox {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+}
+
+.photo-checkbox:hover {
+    background: rgba(255,255,255,1) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.photo-select {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+}
+
+/* 选择模式下的图片样式 */
+.select-mode .photo-image {
+    cursor: default !important;
+}
+
+/* 防止选择模式下误触模态框 */
+.select-mode .photo-image[data-bs-toggle] {
+    pointer-events: none;
+}
+
+/* 选中状态的照片卡片高亮 */
+.photo-card.selected {
+    outline: 3px solid #0d6efd;
+    outline-offset: 2px;
+}
+</style>
+{% endblock %}
+
+{% block toolbar %}
+<div class="d-flex gap-2" id="toolbarContainer">
+    <!-- 批量操作工具栏 -->
+    <div id="batchToolbar" class="d-none">
+        <div class="d-flex gap-2 align-items-center">
+            <span class="text-muted">已选择 <span id="selectedCount">0</span> 张照片</span>
+            <button type="button" class="btn btn-sm btn-danger" onclick="batchDeletePhotos()">
+                <i class="bi bi-trash"></i> 批量删除
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                <i class="bi bi-x"></i> 取消选择
+            </button>
+        </div>
+    </div>
+    
+    <!-- 常规工具栏 -->
+    <div id="normalToolbar" class="d-flex gap-2">
+        <!-- 选择模式切换 -->
+        <button type="button" class="btn btn-outline-info" onclick="toggleSelectMode()" id="selectModeBtn">
+            <i class="bi bi-check-square"></i> 选择模式
+        </button>
+        
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-sort-down"></i> 照片排序
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="?sort_by=default&order=desc">自定义排序</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="?sort_by=created_at&order=desc">上传时间 ↓</a></li>
+                <li><a class="dropdown-item" href="?sort_by=created_at&order=asc">上传时间 ↑</a></li>
+                <li><a class="dropdown-item" href="?sort_by=original_filename&order=asc">文件名 A-Z</a></li>
+                <li><a class="dropdown-item" href="?sort_by=original_filename&order=desc">文件名 Z-A</a></li>
+                <li><a class="dropdown-item" href="?sort_by=file_size&order=desc">文件大小 ↓</a></li>
+                <li><a class="dropdown-item" href="?sort_by=file_size&order=asc">文件大小 ↑</a></li>
+            </ul>
+        </div>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editAlbumModal">
+            <i class="bi bi-pencil"></i> 编辑相册
+        </button>
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-cloud-upload"></i> 上传照片
+        </button>
+    </div>
+    
+    <!-- 选择模式工具栏 -->
+    <div id="selectToolbar" class="d-none">
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll()">
+                <i class="bi bi-check-all"></i> 全选
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                <i class="bi bi-square"></i> 取消全选
+            </button>
+            <span class="text-muted ms-2">已选择 <span id="selectedCount">0</span> 张照片</span>
+            <button type="button" class="btn btn-sm btn-danger" onclick="batchDeletePhotos()">
+                <i class="bi bi-trash"></i> 批量删除
+            </button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="toggleSelectMode()">
+                <i class="bi bi-x-square"></i> 退出选择
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- 相册信息 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h4>{{ album.name }}</h4>
+                        <p class="text-muted">{{ album.description or "暂无描述" }}</p>
+                        <small class="text-muted">
+                            创建于 {{ album.created_at.strftime('%Y-%m-%d %H:%M') }} |
+                            更新于 {{ album.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        </small>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="badge bg-primary fs-6 mb-2">{{ photos|length }} 张照片</span>
+                            <a href="/admin/albums" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-arrow-left"></i> 返回相册列表
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 照片网格 -->
+{% if photos %}
+<div class="photo-grid sortable-photos" id="photoGrid">
+    {% for photo in photos %}
+    <div class="photo-card" data-photo-id="{{ photo.id }}" data-sort-order="{{ photo.sort_order }}">
+        <div class="photo-image-container position-relative">
+            <img src="{{ photo.thumbnail_url }}" 
+                 alt="{{ photo.original_filename }}"
+                 class="img-fluid photo-image"
+                 style="width: 100%; height: 200px; object-fit: cover; cursor: pointer;"
+                 onclick="handleImageClick('{{ photo.id }}')"
+                 data-bs-toggle="modal" 
+                 data-bs-target="#photoModal{{ photo.id }}">
+            
+            <!-- 批量选择复选框 - 左上角，选择模式时显示 -->
+            <div class="position-absolute photo-checkbox d-none" 
+                 style="top: 8px; left: 8px; z-index: 100; background: rgba(255,255,255,0.9); border-radius: 4px; padding: 4px;">
+                <input type="checkbox" class="form-check-input photo-select" 
+                       value="{{ photo.id }}" 
+                       onchange="updateSelection()"
+                       onclick="event.stopPropagation()"
+                       style="transform: scale(1.8); margin: 0;">
+            </div>
+            
+            <!-- 删除按钮 - 左上角，常规模式时显示 -->
+            <div class="position-absolute single-delete-btn" 
+                 style="top: 8px; left: 8px; z-index: 50;">
+                <form method="post" action="/admin/photo/{{ photo.id }}/delete" 
+                      onsubmit="return confirm('确定要删除这张照片吗？')" 
+                      style="display: inline;">
+                    <button type="submit" class="btn btn-sm btn-danger delete-btn" 
+                            style="padding: 4px 6px; font-size: 12px;" title="删除照片">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </div>
+            
+            <!-- 拖拽手柄 - 右上角 -->
+            <div class="position-absolute top-0 end-0 p-1">
+                <span class="badge bg-primary sort-handle" style="cursor: move;">
+                    <i class="bi bi-grip-vertical"></i>
+                </span>
+            </div>
+        </div>
+        <div class="p-2 pb-1">
+            <!-- 内联编辑描述 -->
+            <div class="description-edit-area">
+                <!-- 有描述时的显示 -->
+                <div class="description-display {% if not photo.description %}d-none{% endif %}">
+                    <small class="text-success d-block" 
+                           id="description-text-{{ photo.id }}" 
+                           style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">{{ photo.description or '' }}</small>
+                    <button class="btn btn-xs btn-outline-secondary mt-1" data-photo-id="{{ photo.id }}" onclick="editDescription(this.dataset.photoId)">
+                        <i class="bi bi-pencil"></i> 编辑
+                    </button>
+                </div>
+                
+                <!-- 编辑状态 -->
+                <div class="description-edit d-none">
+                    <textarea class="form-control form-control-sm" 
+                              id="description-input-{{ photo.id }}" 
+                              placeholder="添加描述..." 
+                              rows="2">{{ photo.description or '' }}</textarea>
+                    <div class="mt-1">
+                        <button class="btn btn-xs btn-success" data-photo-id="{{ photo.id }}" onclick="saveDescription(this.dataset.photoId)">
+                            <i class="bi bi-check"></i> 保存
+                        </button>
+                        <button class="btn btn-xs btn-secondary ms-1" data-photo-id="{{ photo.id }}" onclick="cancelEdit(this.dataset.photoId)">
+                            <i class="bi bi-x"></i> 取消
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 无描述时的显示 -->
+                {% if not photo.description %}
+                <div class="no-description-display">
+                    <small class="text-muted">暂无描述</small>
+                    <button class="btn btn-xs btn-outline-info mt-1 add-description-btn" data-photo-id="{{ photo.id }}" onclick="editDescription(this.dataset.photoId)">
+                        <i class="bi bi-plus"></i> 添加描述
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 照片查看模态框 -->
+    <div class="modal fade" id="photoModal{{ photo.id }}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ photo.original_filename }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="{{ photo.url }}" alt="{{ photo.original_filename }}" 
+                         class="img-fluid" style="max-height: 60vh;">
+                </div>
+                <div class="modal-footer">
+                    <div class="w-100">
+                        <!-- 照片完整信息 -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-info-circle"></i> 基本信息</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td class="text-muted">文件名：</td>
+                                        <td>{{ photo.original_filename }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">尺寸：</td>
+                                        <td>{% if photo.width and photo.height %}{{ photo.width }} × {{ photo.height }}{% else %}未知{% endif %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">大小：</td>
+                                        <td>{{ "%.2f"|format(photo.file_size / 1024 / 1024) }} MB</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">上传时间：</td>
+                                        <td>{{ photo.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">排序值：</td>
+                                        <td>{{ photo.sort_order }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-card-text"></i> 照片描述</h6>
+                                {% if photo.description %}
+                                <div class="p-3 bg-light rounded">
+                                    <p class="mb-0" style="white-space: pre-wrap;">{{ photo.description }}</p>
+                                </div>
+                                {% else %}
+                                <div class="p-3 bg-light rounded text-muted">
+                                    <p class="mb-0">暂无描述</p>
+                                </div>
+                                {% endif %}
+                                <div class="mt-3 d-flex gap-2">
+                                    <a href="{{ photo.url }}" target="_blank" class="btn btn-primary">
+                                        <i class="bi bi-download"></i> 查看原图
+                                    </a>
+                                    <button class="btn btn-success" 
+                                            data-album-id="{{ album.id }}" 
+                                            data-photo-id="{{ photo.id }}" 
+                                            data-filename="{{ photo.original_filename }}"
+                                            onclick="setCoverPhoto(this.dataset.albumId, this.dataset.photoId, this.dataset.filename)">
+                                        <i class="bi bi-image"></i> 设为封面
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-image text-muted" style="font-size: 4rem;"></i>
+    <h4 class="mt-3 text-muted">暂无照片</h4>
+    <p class="text-muted">点击右上角"上传照片"按钮添加第一张照片</p>
+</div>
+{% endif %}
+
+<!-- 编辑相册模态框 -->
+<div class="modal fade" id="editAlbumModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑相册信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/admin/album/{{ album.id }}/edit">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="albumName" class="form-label">相册名称</label>
+                        <input type="text" class="form-control" id="albumName" 
+                               name="name" value="{{ album.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="albumDescription" class="form-label">相册描述</label>
+                        <textarea class="form-control" id="albumDescription" 
+                                  name="description" rows="3">{{ album.description or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 上传照片模态框 -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">上传照片到"{{ album.name }}"</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/admin/album/{{ album.id }}/upload" 
+                  enctype="multipart/form-data" id="quickUploadForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="quickFiles" class="form-label">选择照片文件</label>
+                        <input type="file" class="form-control" id="quickFiles" name="files" 
+                               multiple accept="image/*" required>
+                        <div class="form-text">
+                            支持 JPG、PNG、GIF、WebP 格式，一次最多上传 20 张
+                        </div>
+                    </div>
+                    
+                    <!-- 快速预览 -->
+                    <div id="quickPreview" class="mb-3" style="display: none;">
+                        <h6>预览：</h6>
+                        <div class="row" id="quickPreviewContainer">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" id="quickUploadBtn">
+                        <i class="bi bi-cloud-upload"></i> 上传
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 批量删除确认模态框 -->
+<div class="modal fade" id="batchDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">批量删除照片</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    确定要删除 <strong id="deleteCount">0</strong> 张照片吗？
+                </div>
+                <p class="text-muted">此操作不可逆，照片文件将被永久删除。</p>
+                
+                <!-- 隐藏表单用于提交 -->
+                <form id="batchDeleteForm" method="post" action="/admin/photos/batch-delete">
+                    <input type="hidden" id="photoIdsInput" name="photo_ids" value="">
+                    <input type="hidden" name="album_id" value="{{ album.id }}">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmBatchDelete()">
+                    <i class="bi bi-trash"></i> 确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quickFiles = document.getElementById('quickFiles');
+    const quickPreview = document.getElementById('quickPreview');
+    const quickPreviewContainer = document.getElementById('quickPreviewContainer');
+    const quickUploadForm = document.getElementById('quickUploadForm');
+    const quickUploadBtn = document.getElementById('quickUploadBtn');
+    
+    // 初始化拖拽排序
+    const photoGrid = document.getElementById('photoGrid');
+    if (photoGrid) {
+        new Sortable(photoGrid, {
+            handle: '.sort-handle',
+            animation: 150,
+            onEnd: function(evt) {
+                // 更新排序
+                updatePhotoSort();
+            }
+        });
+    }
+    
+    // 快速预览
+    if (quickFiles) {
+        quickFiles.addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (quickPreviewContainer) {
+                quickPreviewContainer.innerHTML = '';
+            }
+            
+            if (files.length > 0 && quickPreview) {
+                quickPreview.style.display = 'block';
+                
+                Array.from(files).slice(0, 6).forEach((file, index) => {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const div = document.createElement('div');
+                            div.className = 'col-2 mb-2';
+                            div.innerHTML = `
+                                <img src="${e.target.result}" class="img-fluid rounded" 
+                                     style="width: 100%; height: 60px; object-fit: cover;">
+                            `;
+                            quickPreviewContainer.appendChild(div);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+                
+                if (files.length > 6) {
+                    const div = document.createElement('div');
+                    div.className = 'col-2 mb-2';
+                    div.innerHTML = `
+                        <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                             style="height: 60px;">
+                            <small>+${files.length - 6}</small>
+                        </div>
+                    `;
+                    quickPreviewContainer.appendChild(div);
+                }
+            } else if (quickPreview) {
+                quickPreview.style.display = 'none';
+            }
+        });
+    }
+    
+    // 快速上传表单提交
+    if (quickUploadForm && quickUploadBtn) {
+        quickUploadForm.addEventListener('submit', function(e) {
+            quickUploadBtn.disabled = true;
+            quickUploadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 上传中...';
+        });
+    }
+    
+    // 当前排序状态提示
+    const currentSort = '{{ current_sort }}';
+    const currentOrder = '{{ current_order }}';
+    
+    if (currentSort && currentOrder) {
+        let sortText = '';
+        if (currentSort === 'created_at') {
+            sortText = currentOrder === 'desc' ? '上传时间 ↓' : '上传时间 ↑';
+        } else if (currentSort === 'original_filename') {
+            sortText = currentOrder === 'asc' ? '文件名 A-Z' : '文件名 Z-A';
+        } else if (currentSort === 'file_size') {
+            sortText = currentOrder === 'desc' ? '文件大小 ↓' : '文件大小 ↑';
+        } else if (currentSort === 'default') {
+            sortText = '自定义排序';
+        }
+        
+        const sortButton = document.querySelector('.dropdown-toggle');
+        if (sortButton && sortText) {
+            sortButton.innerHTML = `<i class="bi bi-sort-down"></i> ${sortText}`;
+        }
+    }
+});
+
+// 内联编辑功能
+function editDescription(photoId) {
+    const photoCard = document.querySelector(`[data-photo-id="${photoId}"]`);
+    const displayDiv = photoCard.querySelector('.description-display');
+    const editDiv = photoCard.querySelector('.description-edit');
+    const noDescDiv = photoCard.querySelector('.no-description-display');
+    
+    // 隐藏所有显示状态
+    if (displayDiv) displayDiv.classList.add('d-none');
+    if (noDescDiv) noDescDiv.classList.add('d-none');
+    
+    // 显示编辑状态
+    editDiv.classList.remove('d-none');
+    
+    // 聚焦到输入框
+    const input = photoCard.querySelector(`#description-input-${photoId}`);
+    input.focus();
+}
+
+function cancelEdit(photoId) {
+    const photoCard = document.querySelector(`[data-photo-id="${photoId}"]`);
+    const displayDiv = photoCard.querySelector('.description-display');
+    const editDiv = photoCard.querySelector('.description-edit');
+    const noDescDiv = photoCard.querySelector('.no-description-display');
+    const originalText = photoCard.querySelector(`#description-text-${photoId}`).textContent;
+    
+    // 恢复原始文本
+    photoCard.querySelector(`#description-input-${photoId}`).value = originalText;
+    
+    // 隐藏编辑状态
+    editDiv.classList.add('d-none');
+    
+    // 显示对应的状态
+    if (originalText.trim()) {
+        if (displayDiv) displayDiv.classList.remove('d-none');
+    } else {
+        if (noDescDiv) noDescDiv.classList.remove('d-none');
+    }
+}
+
+async function saveDescription(photoId) {
+    const photoCard = document.querySelector(`[data-photo-id="${photoId}"]`);
+    const input = photoCard.querySelector(`#description-input-${photoId}`);
+    const description = input.value.trim();
+    
+    try {
+        const formData = new FormData();
+        formData.append('description', description);
+        
+        const response = await fetch(`/admin/photo/${photoId}/edit`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            // 更新显示文本
+            const displayText = photoCard.querySelector(`#description-text-${photoId}`);
+            displayText.textContent = description;
+            
+            const displayDiv = photoCard.querySelector('.description-display');
+            const editDiv = photoCard.querySelector('.description-edit');
+            const noDescDiv = photoCard.querySelector('.no-description-display');
+            
+            // 隐藏编辑状态
+            editDiv.classList.add('d-none');
+            
+            if (description) {
+                // 有描述：显示描述区域，隐藏无描述区域
+                if (displayDiv) displayDiv.classList.remove('d-none');
+                if (noDescDiv) noDescDiv.classList.add('d-none');
+            } else {
+                // 无描述：隐藏描述区域，显示无描述区域
+                if (displayDiv) displayDiv.classList.add('d-none');
+                if (noDescDiv) noDescDiv.classList.remove('d-none');
+            }
+            
+            // 显示成功提示
+            showToast('描述保存成功', 'success');
+        } else {
+            showToast('保存失败，请重试', 'error');
+        }
+    } catch (error) {
+        console.error('保存描述失败:', error);
+        showToast('保存失败，请重试', 'error');
+    }
+}
+
+// 更新照片排序
+async function updatePhotoSort() {
+    const photoCards = document.querySelectorAll('.photo-card');
+    const updates = [];
+    
+    photoCards.forEach((card, index) => {
+        const photoId = card.dataset.photoId;
+        const newSortOrder = photoCards.length - index; // 越靠前排序值越大
+        updates.push({
+            photoId: photoId,
+            sortOrder: newSortOrder
+        });
+    });
+    
+    try {
+        for (const update of updates) {
+            const response = await fetch(`/admin/photo/${update.photoId}/sort`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sort_order: update.sortOrder })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('排序更新失败:', errorData);
+                throw new Error('排序更新失败: ' + (errorData.detail || response.statusText));
+            }
+            
+            const result = await response.json();
+            console.log('排序更新成功:', result);
+        }
+        
+        showToast('排序已更新', 'success');
+    } catch (error) {
+        console.error('更新排序失败:', error);
+        showToast('排序更新失败，请刷新页面重试: ' + error.message, 'error');
+    }
+}
+
+// 设置相册封面
+async function setCoverPhoto(albumId, photoId, filename) {
+    if (!confirm(`确定要将"${filename}"设为相册封面吗？`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/album/${albumId}/cover`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ cover_photo_id: photoId })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('设置封面失败:', errorData);
+            throw new Error('设置封面失败: ' + (errorData.detail || response.statusText));
+        }
+        
+        const result = await response.json();
+        console.log('设置封面成功:', result);
+        showToast('相册封面设置成功', 'success');
+    } catch (error) {
+        console.error('设置封面失败:', error);
+        showToast('设置封面失败: ' + error.message, 'error');
+    }
+}
+
+// 简单的提示功能
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} position-fixed top-0 end-0 m-3`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close ms-2" onclick="this.parentElement.remove()"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 3000);
+}
+
+// 批量删除相关功能
+let isSelectMode = false;
+
+// 处理图片点击事件
+function handleImageClick(photoId) {
+    if (isSelectMode) {
+        // 选择模式下，点击图片切换复选框状态
+        const checkbox = document.querySelector(`.photo-select[value="${photoId}"]`);
+        if (checkbox) {
+            checkbox.checked = !checkbox.checked;
+            updateSelection();
+        }
+    }
+    // 非选择模式下，默认的模态框行为会自动处理
+}
+
+// 切换选择模式
+function toggleSelectMode() {
+    isSelectMode = !isSelectMode;
+    const selectModeBtn = document.getElementById('selectModeBtn');
+    const batchToolbar = document.getElementById('batchToolbar');
+    const normalToolbar = document.getElementById('normalToolbar');
+    const selectToolbar = document.getElementById('selectToolbar');
+    const checkboxes = document.querySelectorAll('.photo-checkbox');
+    const singleDeleteBtns = document.querySelectorAll('.single-delete-btn');
+    const photoImages = document.querySelectorAll('.photo-image');
+    const body = document.body;
+    
+    if (isSelectMode) {
+        // 进入选择模式
+        body.classList.add('select-mode');
+        selectModeBtn.innerHTML = '<i class="bi bi-x-square"></i> 退出选择';
+        selectModeBtn.className = 'btn btn-warning';
+        
+        // 显示复选框，隐藏单独删除按钮
+        checkboxes.forEach(cb => cb.classList.remove('d-none'));
+        singleDeleteBtns.forEach(btn => btn.style.display = 'none');
+        
+        // 禁用图片的模态框功能
+        photoImages.forEach(img => {
+            img.removeAttribute('data-bs-toggle');
+            img.removeAttribute('data-bs-target');
+            img.style.cursor = 'default';
+        });
+        
+        // 显示选择工具栏，隐藏常规工具栏
+        if (selectToolbar) selectToolbar.classList.remove('d-none');
+        if (batchToolbar) batchToolbar.classList.add('d-none');
+        normalToolbar.style.display = 'none';
+        
+    } else {
+        // 退出选择模式
+        body.classList.remove('select-mode');
+        selectModeBtn.innerHTML = '<i class="bi bi-check-square"></i> 选择模式';
+        selectModeBtn.className = 'btn btn-outline-info';
+        
+        // 隐藏复选框，显示单独删除按钮
+        checkboxes.forEach(cb => {
+            cb.classList.add('d-none');
+            const checkbox = cb.querySelector('input');
+            if (checkbox) checkbox.checked = false;
+        });
+        singleDeleteBtns.forEach(btn => btn.style.display = 'block');
+        
+        // 恢复图片的模态框功能
+        photoImages.forEach(img => {
+            const photoId = img.closest('.photo-card').dataset.photoId;
+            img.setAttribute('data-bs-toggle', 'modal');
+            img.setAttribute('data-bs-target', `#photoModal${photoId}`);
+            img.style.cursor = 'pointer';
+        });
+        
+        // 隐藏选择工具栏，显示常规工具栏
+        if (selectToolbar) selectToolbar.classList.add('d-none');
+        if (batchToolbar) batchToolbar.classList.add('d-none');
+        normalToolbar.style.display = 'flex';
+        
+        // 重置选择计数
+        updateSelection();
+    }
+}
+
+// 全选功能
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.photo-select');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateSelection();
+}
+
+// 更新选择状态
+function updateSelection() {
+    const selectedCheckboxes = document.querySelectorAll('.photo-select:checked');
+    const allCheckboxes = document.querySelectorAll('.photo-select');
+    const selectedCount = selectedCheckboxes.length;
+    const countElements = document.querySelectorAll('#selectedCount');
+    
+    // 更新计数显示
+    countElements.forEach(element => {
+        if (element) element.textContent = selectedCount;
+    });
+    
+    // 启用/禁用批量删除按钮
+    const batchDeleteBtns = document.querySelectorAll('button[onclick="batchDeletePhotos()"]');
+    batchDeleteBtns.forEach(btn => {
+        if (btn) btn.disabled = selectedCount === 0;
+    });
+    
+    // 更新照片卡片的选中状态视觉效果
+    allCheckboxes.forEach(checkbox => {
+        const photoCard = checkbox.closest('.photo-card');
+        if (photoCard) {
+            if (checkbox.checked) {
+                photoCard.classList.add('selected');
+            } else {
+                photoCard.classList.remove('selected');
+            }
+        }
+    });
+}
+
+// 清除所有选择
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.photo-select');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateSelection();
+}
+
+// 执行批量删除
+function batchDeletePhotos() {
+    const selectedCheckboxes = document.querySelectorAll('.photo-select:checked');
+    const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+    
+    if (selectedIds.length === 0) {
+        showToast('请先选择要删除的照片', 'error');
+        return;
+    }
+    
+    // 更新模态框中的删除数量
+    const deleteCountElement = document.getElementById('deleteCount');
+    const photoIdsInput = document.getElementById('photoIdsInput');
+    
+    if (deleteCountElement) {
+        deleteCountElement.textContent = selectedIds.length;
+    }
+    
+    if (photoIdsInput) {
+        photoIdsInput.value = selectedIds.join(',');
+    }
+    
+    // 显示确认模态框
+    const modal = new bootstrap.Modal(document.getElementById('batchDeleteModal'));
+    modal.show();
+}
+
+// 确认批量删除
+function confirmBatchDelete() {
+    const form = document.getElementById('batchDeleteForm');
+    if (form) {
+        form.submit();
+    }
+}
+</script>
+{% endblock %} 

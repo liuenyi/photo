@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}回收站 - 小宇相册管理后台{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">回收站</h1>
+        {% if total_albums > 0 or total_photos > 0 %}
+        <form action="/admin/trash/clear" method="post" onsubmit="return confirm('确定要清空回收站吗？此操作将永久删除所有项目，无法恢复！')">
+            <button type="submit" class="d-none d-sm-inline-block btn btn-sm btn-danger shadow-sm">
+                <i class="fas fa-trash fa-sm text-white-50"></i> 清空回收站
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    {% endif %}
+
+    {% if total_albums == 0 and total_photos == 0 %}
+    <div class="text-center my-5">
+        <div class="error mx-auto" data-text="Empty">Empty</div>
+        <p class="lead text-gray-800 mb-4">回收站为空</p>
+        <p class="text-gray-500 mb-0">当前没有已删除的相册或照片</p>
+        <a href="/admin/">&larr; 返回首页</a>
+    </div>
+    {% else %}
+
+    <!-- 已删除的相册 -->
+    {% if albums|length > 0 %}
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">已删除的相册 ({{ total_albums }})</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>名称</th>
+                            <th>描述</th>
+                            <th>照片数量</th>
+                            <th>删除时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for album in albums %}
+                        <tr>
+                            <td>{{ album.id }}</td>
+                            <td>{{ album.name }}</td>
+                            <td>{{ album.description }}</td>
+                            <td>{{ album.photo_count }}</td>
+                            <td>{{ album.deleted_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <form action="/admin/trash/album/{{ album.id }}/restore" method="post">
+                                        <button type="submit" class="btn btn-sm btn-success mr-2">
+                                            <i class="fas fa-undo"></i> 恢复
+                                        </button>
+                                    </form>
+                                    <form action="/admin/trash/album/{{ album.id }}/delete-permanently" method="post" onsubmit="return confirm('确定要永久删除此相册吗？此操作无法恢复！')">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i> 永久删除
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 已删除的照片 -->
+    {% if photos|length > 0 %}
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">已删除的照片 ({{ total_photos }})</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for photo in photos %}
+                <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+                    <div class="card h-100">
+                        <a href="{{ photo.url }}" target="_blank">
+                            <img class="card-img-top" src="{{ photo.thumbnail_url }}" alt="{{ photo.description or photo.original_filename }}">
+                        </a>
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate">{{ photo.original_filename }}</h5>
+                            <p class="card-text text-muted small">相册: {{ photo.album_name }}</p>
+                            <p class="card-text text-muted small">删除时间: {{ photo.deleted_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                            <div class="d-flex justify-content-between mt-2">
+                                <form action="/admin/trash/photo/{{ photo.id }}/restore" method="post">
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="fas fa-undo"></i> 恢复
+                                    </button>
+                                </form>
+                                <form action="/admin/trash/photo/{{ photo.id }}/delete-permanently" method="post" onsubmit="return confirm('确定要永久删除此照片吗？此操作无法恢复！')">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i> 永久删除
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

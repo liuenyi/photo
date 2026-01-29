@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block page_title %}相册管理{% endblock %}
+
+{% block toolbar %}
+<div class="d-flex gap-2">
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-sort-down"></i> 排序
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="?sort_by=default&order=desc">自定义排序</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="?sort_by=name&order=asc">名称 A-Z</a></li>
+            <li><a class="dropdown-item" href="?sort_by=name&order=desc">名称 Z-A</a></li>
+            <li><a class="dropdown-item" href="?sort_by=created_at&order=desc">创建时间 ↓</a></li>
+            <li><a class="dropdown-item" href="?sort_by=created_at&order=asc">创建时间 ↑</a></li>
+            <li><a class="dropdown-item" href="?sort_by=updated_at&order=desc">更新时间 ↓</a></li>
+            <li><a class="dropdown-item" href="?sort_by=updated_at&order=asc">更新时间 ↑</a></li>
+        </ul>
+    </div>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAlbumModal">
+        <i class="bi bi-plus-circle"></i> 新建相册
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row sortable-albums" id="albumGrid">
+    {% for item in albums %}
+    <div class="col-md-6 col-lg-4 mb-4 album-card" data-album-id="{{ item.album.id }}" data-sort-order="{{ item.album.sort_order }}">
+        <div class="card h-100">
+            <div class="position-absolute top-0 end-0 p-2" style="z-index: 10;">
+                <span class="badge bg-primary sort-handle" style="cursor: move;">
+                    <i class="bi bi-grip-vertical"></i>
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <h5 class="card-title">{{ item.album.name }}</h5>
+                    <p class="card-text text-muted">{{ item.album.description or "暂无描述" }}</p>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-primary">{{ item.photo_count }} 张</span>
+                </div>
+                
+                {% if item.album.cover_image %}
+                <img src="{{ item.album.cover_image }}" 
+                     alt="{{ item.album.name }}" 
+                     class="img-fluid rounded mb-2 mt-2"
+                     style="width: 100%; height: 200px; object-fit: cover;">
+                {% else %}
+                <div class="bg-light rounded d-flex align-items-center justify-content-center mb-2 mt-2" 
+                     style="height: 200px;">
+                    <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+                </div>
+                {% endif %}
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        创建于 {{ item.album.created_at.strftime('%Y-%m-%d') }}
+                    </small>
+                    <div class="d-flex gap-1">
+                        <a href="/admin/album/{{ item.album.id }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> 查看
+                        </a>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-three-dots"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" 
+                                       data-bs-target="#editAlbumModal{{ item.album.id }}">
+                                    <i class="bi bi-pencil"></i> 编辑
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" 
+                                       data-album-id="{{ item.album.id }}" 
+                                       data-album-name="{{ item.album.name }}"
+                                       onclick="deleteAlbum(this.dataset.albumId, this.dataset.albumName)">
+                                    <i class="bi bi-trash"></i> 删除
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑相册模态框 -->
+    <div class="modal fade" id="editAlbumModal{{ item.album.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑相册</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="/admin/album/{{ item.album.id }}/edit">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="editName{{ item.album.id }}" class="form-label">相册名称</label>
+                            <input type="text" class="form-control" id="editName{{ item.album.id }}" 
+                                   name="name" value="{{ item.album.name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editDescription{{ item.album.id }}" class="form-label">描述</label>
+                            <textarea class="form-control" id="editDescription{{ item.album.id }}" 
+                                      name="description" rows="3">{{ item.album.description or '' }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% if not albums %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="bi bi-collection text-muted" style="font-size: 4rem;"></i>
+            <h4 class="mt-3 text-muted">暂无相册</h4>
+            <p class="text-muted">点击右上角"新建相册"按钮创建第一个相册</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 创建相册模态框 -->
+<div class="modal fade" id="createAlbumModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">创建新相册</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/admin/albums/create">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">相册名称</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认表单 -->
+<form id="deleteAlbumForm" method="post" style="display: none;">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化相册拖拽排序
+    const albumGrid = document.getElementById('albumGrid');
+    if (albumGrid) {
+        new Sortable(albumGrid, {
+            handle: '.sort-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onEnd: function(evt) {
+                // 更新相册排序
+                updateAlbumSort();
+            }
+        });
+    }
+    
+    // 当前排序状态提示
+    const currentSort = '{{ current_sort }}';
+    const currentOrder = '{{ current_order }}';
+    
+    if (currentSort && currentOrder) {
+        let sortText = '';
+        if (currentSort === 'name') {
+            sortText = currentOrder === 'asc' ? '名称 A-Z' : '名称 Z-A';
+        } else if (currentSort === 'created_at') {
+            sortText = currentOrder === 'desc' ? '创建时间 ↓' : '创建时间 ↑';
+        } else if (currentSort === 'updated_at') {
+            sortText = currentOrder === 'desc' ? '更新时间 ↓' : '更新时间 ↑';
+        } else if (currentSort === 'default') {
+            sortText = '自定义排序';
+        }
+        
+        const sortButton = document.querySelector('.dropdown-toggle');
+        if (sortButton && sortText) {
+            sortButton.innerHTML = `<i class="bi bi-sort-down"></i> ${sortText}`;
+        }
+    }
+});
+
+function deleteAlbum(albumId, albumName) {
+    if (confirm(`确定要删除相册"${albumName}"吗？\n\n注意：这将同时删除该相册下的所有照片，此操作不可恢复！`)) {
+        const form = document.getElementById('deleteAlbumForm');
+        form.action = `/admin/album/${albumId}/delete`;
+        form.submit();
+    }
+}
+
+// 更新相册排序
+async function updateAlbumSort() {
+    const albumCards = document.querySelectorAll('.album-card');
+    const updates = [];
+    
+    albumCards.forEach((card, index) => {
+        const albumId = card.dataset.albumId;
+        const newSortOrder = albumCards.length - index; // 越靠前排序值越大
+        updates.push({
+            albumId: albumId,
+            sortOrder: newSortOrder
+        });
+    });
+    
+    try {
+        for (const update of updates) {
+            const response = await fetch(`/admin/album/${update.albumId}/sort`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sort_order: update.sortOrder })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('相册排序更新失败:', errorData);
+                throw new Error('相册排序更新失败: ' + (errorData.detail || response.statusText));
+            }
+            
+            const result = await response.json();
+            console.log('相册排序更新成功:', result);
+        }
+        
+        showToast('相册排序已更新', 'success');
+    } catch (error) {
+        console.error('更新相册排序失败:', error);
+        showToast('相册排序更新失败，请刷新页面重试: ' + error.message, 'error');
+    }
+}
+
+// 简单的提示功能
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} position-fixed top-0 end-0 m-3`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close ms-2" onclick="this.parentElement.remove()"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 3000);
+}
+</script>
+{% endblock %} 

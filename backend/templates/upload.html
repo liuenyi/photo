@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block page_title %}批量上传{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-cloud-upload"></i>
+                    批量上传照片
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-3">
+                        <label for="album_id" class="form-label">选择相册</label>
+                        <select class="form-select" id="album_id" name="album_id" required>
+                            <option value="">请选择相册</option>
+                            {% for album in albums %}
+                            <option value="{{ album.id }}">{{ album.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="files" class="form-label">选择照片文件</label>
+                        <input type="file" class="form-control" id="files" name="files" 
+                               multiple accept="image/*" required>
+                        <div class="form-text">
+                            支持 JPG、PNG、GIF、WebP 格式，单个文件最大 100MB，一次最多上传 1000 张
+                        </div>
+                    </div>
+                    
+                    <!-- 文件预览区 -->
+                    <div id="filePreview" class="mb-3" style="display: none;">
+                        <h6>文件预览：</h6>
+                        <div class="row" id="previewContainer">
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="uploadBtn">
+                            <i class="bi bi-cloud-upload"></i> 开始上传
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- 上传进度 -->
+                <div id="uploadProgress" class="mt-3" style="display: none;">
+                    <h6>上传进度：</h6>
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="progressText" class="text-center mt-2">准备上传...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 使用说明 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    使用说明
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>支持的图片格式：JPG、JPEG、PNG、GIF、WebP</li>
+                    <li>单个文件大小限制：10MB</li>
+                    <li>单次上传数量限制：20张</li>
+                    <li>上传后会自动生成缩略图</li>
+                    <li>支持批量选择多个文件</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('files');
+    const previewContainer = document.getElementById('previewContainer');
+    const filePreview = document.getElementById('filePreview');
+    const uploadForm = document.getElementById('uploadForm');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const albumSelect = document.getElementById('album_id');
+    
+    // 文件选择预览
+    fileInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        previewContainer.innerHTML = '';
+        
+        if (files.length > 0) {
+            filePreview.style.display = 'block';
+            
+            Array.from(files).forEach((file, index) => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const div = document.createElement('div');
+                        div.className = 'col-3 mb-3';
+                        div.innerHTML = `
+                            <div class="card">
+                                <img src="${e.target.result}" class="card-img-top" 
+                                     style="height: 100px; object-fit: cover;">
+                                <div class="card-body p-2">
+                                    <small class="text-muted">${file.name}</small>
+                                </div>
+                            </div>
+                        `;
+                        previewContainer.appendChild(div);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        } else {
+            filePreview.style.display = 'none';
+        }
+    });
+    
+    // 表单提交
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData();
+        const albumId = albumSelect.value;
+        const files = fileInput.files;
+        
+        if (!albumId) {
+            alert('请选择相册');
+            return;
+        }
+        
+        if (files.length === 0) {
+            alert('请选择文件');
+            return;
+        }
+        
+        if (files.length > 1000) {
+            alert('一次最多上传1000张照片');
+            return;
+        }
+        
+        // 添加文件到表单数据
+        Array.from(files).forEach(file => {
+            formData.append('files', file);
+        });
+        
+        // 显示进度条
+        uploadProgress.style.display = 'block';
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 上传中...';
+        
+        // 发送请求
+        fetch(`/admin/album/${albumId}/upload`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.text();
+            }
+            throw new Error('上传失败');
+        })
+        .then(data => {
+            // 上传成功，重定向到相册页面
+            window.location.href = `/admin/album/${albumId}`;
+        })
+        .catch(error => {
+            alert('上传失败：' + error.message);
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="bi bi-cloud-upload"></i> 开始上传';
+            uploadProgress.style.display = 'none';
+        });
+    });
+});
+</script>
+{% endblock %} 

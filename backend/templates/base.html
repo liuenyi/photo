@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}小宇相册管理系统{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .thumbnail {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+        }
+        .photo-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        .photo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .photo-image-container {
+            position: relative;
+            overflow: hidden;
+        }
+        .photo-image-container img {
+            transition: transform 0.2s ease;
+        }
+        .photo-card:hover .photo-image-container img {
+            transform: scale(1.02);
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+        .nav-link {
+            color: #495057;
+        }
+        .nav-link:hover {
+            color: #007bff;
+        }
+        .nav-link.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .sort-handle {
+            cursor: move;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+        .sort-handle:hover {
+            opacity: 1;
+        }
+        .sortable-ghost {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        .description-edit-area {
+            min-height: 35px;
+        }
+        .description-display,
+        .description-edit {
+            transition: all 0.2s ease;
+        }
+        .btn-xs {
+            padding: 0.125rem 0.25rem;
+            font-size: 0.75rem;
+            line-height: 1.2;
+        }
+        .add-description-btn {
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+        .add-description-btn:hover {
+            opacity: 1;
+        }
+        @media (max-width: 768px) {
+            .photo-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 0.5rem;
+            }
+            .sort-handle, .delete-btn {
+                opacity: 1;
+            }
+        }
+        .description-edit textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .delete-btn {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .photo-card:hover .delete-btn {
+            opacity: 1;
+        }
+        .no-description-display {
+            text-align: center;
+            padding: 0.5rem 0;
+        }
+        .no-description-display .text-muted {
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-2 d-none d-md-block sidebar p-3">
+                <div class="position-sticky">
+                    <h5 class="text-center mb-4">
+                        <i class="bi bi-camera"></i>
+                        小宇相册管理
+                    </h5>
+                    <ul class="nav nav-pills flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.url.path == '/admin/' %}active{% endif %}" href="/admin/">
+                                <i class="bi bi-house"></i> 首页
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/albums' in request.url.path %}active{% endif %}" href="/admin/albums">
+                                <i class="bi bi-collection"></i> 相册管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/photos' in request.url.path %}active{% endif %}" href="/admin/photos">
+                                <i class="bi bi-image"></i> 照片管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/upload' in request.url.path %}active{% endif %}" href="/admin/upload">
+                                <i class="bi bi-cloud-upload"></i> 批量上传
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/trash' in request.url.path %}active{% endif %}" href="/admin/trash">
+                                <i class="bi bi-trash"></i> 回收站
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="/docs" target="_blank">
+                                <i class="bi bi-book"></i> API 文档
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <form method="post" action="/admin/logout" style="margin: 0;">
+                                <button type="submit" class="nav-link btn btn-link text-start w-100" style="border: none; background: none; padding: 0.5rem 1rem;">
+                                    <i class="bi bi-box-arrow-right"></i> 退出登录
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="col-md-10 ms-sm-auto px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">{% block page_title %}管理后台{% endblock %}</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        {% block toolbar %}{% endblock %}
+                    </div>
+                </div>
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

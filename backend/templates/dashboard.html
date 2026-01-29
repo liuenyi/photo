@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block page_title %}概览{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 统计卡片 -->
+    <div class="col-md-6 mb-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">相册总数</h5>
+                        <h2 class="card-text">{{ albums_count }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-collection" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">照片总数</h5>
+                        <h2 class="card-text">{{ photos_count }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 最新相册 -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-collection"></i>
+                    最新相册
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_albums %}
+                    <div class="list-group list-group-flush">
+                        {% for album in recent_albums %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ album.name }}</h6>
+                                <p class="mb-1 text-muted">{{ album.description or "暂无描述" }}</p>
+                                <small>{{ album.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            </div>
+                            <a href="/admin/album/{{ album.id }}" class="btn btn-sm btn-outline-primary">
+                                查看
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无相册</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 最新照片 -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-image"></i>
+                    最新照片
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_photos %}
+                    <div class="row">
+                        {% for photo in recent_photos %}
+                        <div class="col-4 mb-3">
+                            <img src="{{ photo.thumbnail_url }}" 
+                                 alt="{{ photo.original_filename }}" 
+                                 class="img-fluid rounded"
+                                 style="width: 100%; height: 80px; object-fit: cover;">
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无照片</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速操作 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning"></i>
+                    快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="/admin/albums" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-collection"></i><br>
+                            管理相册
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/admin/upload" class="btn btn-outline-success w-100">
+                            <i class="bi bi-cloud-upload"></i><br>
+                            批量上传
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/admin/photos" class="btn btn-outline-info w-100">
+                            <i class="bi bi-image"></i><br>
+                            照片管理
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/docs" class="btn btn-outline-secondary w-100" target="_blank">
+                            <i class="bi bi-book"></i><br>
+                            API 文档
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

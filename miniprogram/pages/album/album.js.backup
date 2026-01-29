@@ -1,0 +1,409 @@
+const app = getApp()
+
+Page({
+  data: {
+    albumId: '',
+    albumName: '',
+    photos: [],
+    loading: true,
+    error: false,
+    page: 1,
+    hasMore: true,
+    refreshing: false,
+    previewIndex: 0,
+    sortOptions: [
+      { key: 'default', name: '自定义排序' },
+      { key: 'created_at_desc', name: '最新上传' },
+      { key: 'created_at_asc', name: '最早上传' },
+      { key: 'filename_asc', name: '文件名A-Z' },
+      { key: 'filename_desc', name: '文件名Z-A' }
+    ],
+    currentSort: 'default',
+    showSortModal: false,
+    initialized: false
+  },
+
+  onLoad(options) {
+    if (options.albumId && !this.data.initialized) {
+      this.setData({ 
+        albumId: options.albumId,
+        albumName: decodeURIComponent(options.albumName || '相册详情'),
+        initialized: true
+      })
+      
+      // 设置页面标题
+      wx.setNavigationBarTitle({
+        title: this.data.albumName
+      })
+      
+      this.loadPhotos()
+    } else if (!options.albumId) {
+      app.showError('参数错误')
+      wx.navigateBack()
+    }
+  },
+
+  onShow() {
+    // 页面显示时不自动重新加载数据
+    // 用户可以通过下拉刷新来更新数据
+  },
+
+  onPullDownRefresh() {
+    this.refreshData()
+  },
+
+  onReachBottom() {
+    if (this.data.hasMore && !this.data.loading) {
+      this.loadMorePhotos()
+    }
+  },
+
+  // 刷新数据
+  async refreshData() {
+    this.setData({ 
+      refreshing: true,
+      page: 1,
+      hasMore: true,
+      error: false
+    })
+    
+    try {
+      await this.loadPhotos(true)
+      app.showSuccess('刷新成功')
+    } catch (error) {
+      console.error('刷新失败:', error)
+      app.showError('刷新失败')
+    } finally {
+      this.setData({ refreshing: false })
+      wx.stopPullDownRefresh()
+    }
+  },
+
+  // 加载照片列表
+  async loadPhotos(isRefresh = false) {
+    // 如果不是刷新操作，先尝试从缓存加载
+    if (!isRefresh) {
+      const cachedPhotos = app.cacheManager.getPhotosCache(this.data.albumId)
+      if (cachedPhotos && cachedPhotos.length > 0) {
+        console.log('📦 使用缓存的照片数据', cachedPhotos.length, '张照片')
+        this.setData({
+          photos: cachedPhotos,
+          loading: false,
+          error: false
+        })
+        // 即使有缓存，也在后台更新数据
+        this.loadPhotosFromAPI(true)
+        return
+      }
+    }
+    
+    // 没有缓存或需要刷新时，从API加载
+    await this.loadPhotosFromAPI(isRefresh)
+  },
+
+  // 从API加载照片数据
+  async loadPhotosFromAPI(isRefresh = false) {
+    if (!isRefresh) {
+      this.setData({ loading: true, error: false })
+    }
+    
+    try {
+      const response = await app.request({
+        url: '/photos/',
+        method: 'GET',
+        data: {
+          album_id: this.data.albumId,
+          page: isRefresh ? 1 : this.data.page,
+          size: 20,
+          sort_by: this.data.currentSort
+        }
+      })
+
+      console.log('照片API响应:', {
+        response,
+        albumId: this.data.albumId,
+        isRefresh,
+        currentPage: this.data.page,
+        currentPhotosCount: this.data.photos.length
+      })
+
+      // 处理不同的响应格式
+      let photosData = []
+      if (response.items) {
+        photosData = response.items
+      } else if (response.photos) {
+        photosData = response.photos
+      } else if (Array.isArray(response)) {
+        photosData = response
+      } else {
+        console.warn('未知的照片API响应格式:', response)
+        photosData = []
+      }
+
+      const photos = this.processPhotosData(photosData)
+      
+      console.log('处理后的照片数据:', {
+        photos,
+        photosCount: photos.length,
+        firstPhotoUrls: photos[0] ? {
+          thumbnailUrl: photos[0].thumbnailUrl,
+          fullUrl: photos[0].fullUrl
+        } : null
+      })
+      
+      const newPhotos = isRefresh ? photos : [...this.data.photos, ...photos]
+      
+      this.setData({
+        photos: newPhotos,
+        loading: false,
+        error: false,
+        hasMore: response.pages ? response.pages > (isRefresh ? 1 : this.data.page) : false,
+        page: isRefresh ? 2 : this.data.page + 1
+      })
+      
+      // 缓存照片数据（只缓存完整的第一页数据）
+      if (isRefresh || this.data.page === 2) {
+        app.cacheManager.setPhotosCache(this.data.albumId, newPhotos)
+        console.log('💾 照片数据已缓存')
+      }
+      
+    } catch (error) {
+      console.error('加载照片失败:', error)
+      this.setData({ 
+        loading: false, 
+        error: true 
+      })
+      
+      if (!isRefresh) {
+        app.showError('加载照片失败，请重试')
+      }
+    }
+  },
+
+  // 加载更多照片
+  async loadMorePhotos() {
+    await this.loadPhotos(false)
+  },
+
+  // 处理照片数据
+  processPhotosData(photos) {
+    return photos.map(photo => {
+      // 处理图片URL，确保使用完整的URL
+      const baseUrl = getApp().globalData.imageBaseUrl || 'http://localhost:8000'
+      let fullUrl = photo.url
+      let thumbnailUrl = photo.thumbnail_url || photo.url
+      
+      // 如果URL不是完整的HTTP URL，则添加baseUrl
+      if (fullUrl && !fullUrl.startsWith('http')) {
+        fullUrl = baseUrl + fullUrl
+      }
+      if (thumbnailUrl && !thumbnailUrl.startsWith('http')) {
+        thumbnailUrl = baseUrl + thumbnailUrl
+      }
+      
+      return {
+        ...photo,
+        thumbnailUrl,
+        fullUrl,
+        formattedSize: this.formatFileSize(photo.file_size),
+        formattedDate: this.formatDate(photo.created_at)
+      }
+    })
+  },
+
+  // 格式化文件大小
+  formatFileSize(bytes) {
+    if (!bytes) return '未知'
+    
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    let i = 0
+    let size = bytes
+    
+    while (size >= 1024 && i < sizes.length - 1) {
+      size /= 1024
+      i++
+    }
+    
+    return `${size.toFixed(i === 0 ? 0 : 1)}${sizes[i]}`
+  },
+
+  // 格式化日期
+  formatDate(dateString) {
+    if (!dateString) return ''
+    
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = now - date
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) {
+      return '今天'
+    } else if (diffDays === 1) {
+      return '昨天'
+    } else if (diffDays < 7) {
+      return `${diffDays}天前`
+    } else {
+      return date.toLocaleDateString('zh-CN')
+    }
+  },
+
+  // 预览照片
+  onPhotoTap(e) {
+    const index = e.currentTarget.dataset.index
+    const urls = this.data.photos.map(photo => photo.fullUrl).filter(url => url) // 过滤空URL
+    
+    console.log('预览照片:', {
+      index,
+      totalPhotos: this.data.photos.length,
+      urls: urls,
+      currentUrl: urls[index]
+    })
+    
+    this.setData({ previewIndex: index })
+    
+    if (urls.length > 0 && urls[index]) {
+      wx.previewImage({
+        urls,
+        current: urls[index],
+        success: () => {
+          console.log('图片预览成功')
+        },
+        fail: (error) => {
+          console.error('预览图片失败:', error)
+          app.showError('预览失败: ' + (error.errMsg || '未知错误'))
+        }
+      })
+    } else {
+      console.error('没有可预览的图片URL')
+      app.showError('图片资源不可用')
+    }
+  },
+
+  // 长按照片菜单
+  onPhotoLongPress(e) {
+    const photo = e.currentTarget.dataset.photo
+    
+    wx.showActionSheet({
+      itemList: ['保存到相册', '分享给朋友', '查看详情'],
+      success: (res) => {
+        switch (res.tapIndex) {
+          case 0:
+            this.savePhoto(photo)
+            break
+          case 1:
+            this.sharePhoto(photo)
+            break
+          case 2:
+            this.showPhotoDetail(photo)
+            break
+        }
+      }
+    })
+  },
+
+  // 保存照片到系统相册
+  async savePhoto(photo) {
+    try {
+      // 先下载图片
+      const res = await wx.downloadFile({
+        url: photo.fullUrl
+      })
+      
+      if (res.statusCode === 200) {
+        // 保存到系统相册
+        await wx.saveImageToPhotosAlbum({
+          filePath: res.tempFilePath
+        })
+        app.showSuccess('保存成功')
+      } else {
+        throw new Error('下载失败')
+      }
+    } catch (error) {
+      console.error('保存照片失败:', error)
+      
+      if (error.errMsg && error.errMsg.includes('auth')) {
+        // 权限问题
+        wx.showModal({
+          title: '需要授权',
+          content: '保存图片需要访问您的相册权限',
+          success: (res) => {
+            if (res.confirm) {
+              wx.openSetting()
+            }
+          }
+        })
+      } else {
+        app.showError('保存失败')
+      }
+    }
+  },
+
+  // 分享照片
+  sharePhoto(photo) {
+    // 这里可以实现分享逻辑
+    app.showSuccess('分享功能开发中')
+  },
+
+  // 显示照片详情
+  showPhotoDetail(photo) {
+    const detailInfo = [
+      `文件名: ${photo.original_filename || '未知'}`,
+      `尺寸: ${photo.width && photo.height ? `${photo.width}×${photo.height}` : '未知'}`,
+      `大小: ${this.formatFileSize(photo.file_size)}`,
+      `上传时间: ${this.formatDate(photo.created_at)}`,
+    ]
+    
+    if (photo.description) {
+      detailInfo.unshift(`描述: ${photo.description}`)
+    }
+    
+    wx.showModal({
+      title: '照片详情',
+      content: detailInfo.join('\n'),
+      showCancel: false,
+      confirmText: '知道了'
+    })
+  },
+
+  // 显示排序选项
+  showSortOptions() {
+    this.setData({ showSortModal: true })
+  },
+
+  // 隐藏排序选项
+  hideSortModal() {
+    this.setData({ showSortModal: false })
+  },
+
+  // 选择排序方式
+  onSortSelect(e) {
+    const sortKey = e.currentTarget.dataset.sort
+    
+    if (sortKey !== this.data.currentSort) {
+      this.setData({ 
+        currentSort: sortKey,
+        page: 1,
+        hasMore: true,
+        showSortModal: false
+      })
+      this.loadPhotos(true)
+    } else {
+      this.hideSortModal()
+    }
+  },
+
+  // 重试加载
+  onRetry() {
+    this.setData({ page: 1, hasMore: true })
+    this.loadPhotos()
+  },
+
+  // 分享相册
+  onShareAppMessage() {
+    return {
+      title: `相册: ${this.data.albumName}`,
+      path: `/pages/album/album?albumId=${this.data.albumId}&albumName=${encodeURIComponent(this.data.albumName)}`,
+      imageUrl: this.data.photos.length > 0 ? this.data.photos[0].thumbnailUrl : '/images/share-cover.png'
+    }
+  }
+}) 

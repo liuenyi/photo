@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block page_title %}照片管理{% endblock %}
+
+{% block toolbar %}
+<div class="d-flex gap-2">
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-sort-down"></i> 排序
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="?sort_by=default&order=desc">自定义排序</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="?sort_by=created_at&order=desc">上传时间 ↓</a></li>
+            <li><a class="dropdown-item" href="?sort_by=created_at&order=asc">上传时间 ↑</a></li>
+            <li><a class="dropdown-item" href="?sort_by=original_filename&order=asc">文件名 A-Z</a></li>
+            <li><a class="dropdown-item" href="?sort_by=original_filename&order=desc">文件名 Z-A</a></li>
+            <li><a class="dropdown-item" href="?sort_by=file_size&order=desc">文件大小 ↓</a></li>
+            <li><a class="dropdown-item" href="?sort_by=file_size&order=asc">文件大小 ↑</a></li>
+        </ul>
+    </div>
+    <a href="/admin/upload" class="btn btn-success">
+        <i class="bi bi-cloud-upload"></i> 批量上传
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- 照片网格 -->
+{% if photos %}
+<div class="photo-grid">
+    {% for photo in photos %}
+    <div class="photo-card">
+        <img src="{{ photo.thumbnail_url }}" 
+             alt="{{ photo.original_filename }}"
+             class="img-fluid"
+             style="width: 100%; height: 200px; object-fit: cover;"
+             data-bs-toggle="modal" 
+             data-bs-target="#photoModal{{ photo.id }}">
+        <div class="p-2">
+            <small class="text-muted d-block text-truncate">{{ photo.original_filename }}</small>
+            {% if photo.description %}
+            <small class="text-success d-block text-truncate">{{ photo.description }}</small>
+            {% endif %}
+            <div class="d-flex justify-content-between align-items-center mt-1">
+                <small class="text-muted">
+                    {% if photo.width and photo.height %}
+                    {{ photo.width }}x{{ photo.height }}
+                    {% endif %}
+                </small>
+                <div>
+                    <a href="/admin/album/{{ photo.album_id }}" class="btn btn-sm btn-outline-info me-1" title="查看相册">
+                        <i class="bi bi-collection"></i>
+                    </a>
+                    <button class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" 
+                            data-bs-target="#editPhotoModal{{ photo.id }}" title="编辑描述">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <form method="post" action="/admin/photo/{{ photo.id }}/delete" 
+                          onsubmit="return confirm('确定要删除这张照片吗？')" style="display: inline;">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="删除照片">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 照片查看模态框 -->
+    <div class="modal fade" id="photoModal{{ photo.id }}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ photo.original_filename }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="{{ photo.url }}" alt="{{ photo.original_filename }}" 
+                         class="img-fluid" style="max-height: 70vh;">
+                    {% if photo.description %}
+                    <div class="mt-3">
+                        <p class="text-muted"><strong>描述：</strong>{{ photo.description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <div class="text-start w-100">
+                        <small class="text-muted">
+                            文件名：{{ photo.original_filename }}<br>
+                            尺寸：{% if photo.width and photo.height %}{{ photo.width }}x{{ photo.height }}{% else %}未知{% endif %}<br>
+                            大小：{{ "%.1f"|format(photo.file_size / 1024 / 1024) }} MB<br>
+                            上传时间：{{ photo.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </small>
+                    </div>
+                    <div>
+                        <a href="/admin/album/{{ photo.album_id }}" class="btn btn-outline-info me-2">
+                            <i class="bi bi-collection"></i> 查看相册
+                        </a>
+                        <button class="btn btn-outline-warning me-2" data-bs-dismiss="modal" 
+                                data-bs-toggle="modal" data-bs-target="#editPhotoModal{{ photo.id }}">
+                            <i class="bi bi-pencil"></i> 编辑描述
+                        </button>
+                        <a href="{{ photo.url }}" target="_blank" class="btn btn-primary">
+                            <i class="bi bi-download"></i> 查看原图
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑照片描述模态框 -->
+    <div class="modal fade" id="editPhotoModal{{ photo.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑照片描述</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="/admin/photo/{{ photo.id }}/edit">
+                    <div class="modal-body">
+                        <div class="text-center mb-3">
+                            <img src="{{ photo.thumbnail_url }}" alt="{{ photo.original_filename }}" 
+                                 class="img-fluid rounded" style="max-height: 200px;">
+                        </div>
+                        <div class="mb-3">
+                            <label for="photoDescription{{ photo.id }}" class="form-label">照片描述</label>
+                            <textarea class="form-control" id="photoDescription{{ photo.id }}" 
+                                      name="description" rows="3" placeholder="为这张照片添加描述...">{{ photo.description or '' }}</textarea>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">文件名：{{ photo.original_filename }}</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 加载更多提示 -->
+<div class="text-center mt-4">
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> 仅显示最新 50 张照片
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-image text-muted" style="font-size: 4rem;"></i>
+    <h4 class="mt-3 text-muted">暂无照片</h4>
+    <p class="text-muted">点击右上角"批量上传"按钮上传第一张照片</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 当前排序状态提示
+    const currentSort = '{{ current_sort }}';
+    const currentOrder = '{{ current_order }}';
+    
+    if (currentSort && currentOrder) {
+        let sortText = '';
+        if (currentSort === 'created_at') {
+            sortText = currentOrder === 'desc' ? '上传时间 ↓' : '上传时间 ↑';
+        } else if (currentSort === 'original_filename') {
+            sortText = currentOrder === 'asc' ? '文件名 A-Z' : '文件名 Z-A';
+        } else if (currentSort === 'file_size') {
+            sortText = currentOrder === 'desc' ? '文件大小 ↓' : '文件大小 ↑';
+        }
+        
+        const sortButton = document.querySelector('.dropdown-toggle');
+        if (sortButton && sortText) {
+            sortButton.innerHTML = `<i class="bi bi-sort-down"></i> ${sortText}`;
+        }
+    }
+});
+</script>
+{% endblock %} 

@@ -1,0 +1,297 @@
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, update, delete
+from typing import List
+import math
+
+from ..database import get_db, Album, Photo
+from ..schemas import (
+    AlbumResponse, AlbumListResponse, AlbumDetailResponse, 
+    AlbumCreate, AlbumUpdate, MessageResponse, PaginationResponse, PaginatedResponse
+)
+from ..config import settings
+from ..dependencies import get_current_user
+
+router = APIRouter()
+
+
+def fix_cover_image_url(cover_image: str) -> str:
+    """修复封面图片URL，将localhost替换为正确的IP地址"""
+    if not cover_image:
+        return cover_image
+    
+    return cover_image
+
+
+async def get_album_with_photo_count(db: AsyncSession, album: Album) -> AlbumResponse:
+    """获取包含照片数量的相册信息"""
+    # 计算照片数量
+    photo_count_result = await db.execute(
+        select(func.count(Photo.id)).where(Photo.album_id == album.id)
+    )
+    photo_count = photo_count_result.scalar() or 0
+    
+    return AlbumResponse(
+        id=album.id,
+        name=album.name,
+        description=album.description,
+        cover_image=fix_cover_image_url(album.cover_image),
+        photo_count=photo_count,
+        created_at=album.created_at,
+        updated_at=album.updated_at
+    )
+
+
+@router.get("/", response_model=PaginatedResponse[AlbumResponse])
+async def get_albums(
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(10, ge=1, le=100, description="每页数量"),
+    sort_by: str = Query("default", description="排序方式: default, name, created_at, updated_at"),
+    order: str = Query("asc", description="排序顺序: asc, desc"),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    获取相册列表
+    默认排序优先级：自定义排序 → 时间倒序 → 用户选择排序
+    """
+    # 构建排序条件
+    if sort_by == "default":
+        # 默认排序：先按自定义排序，再按更新时间倒序
+        order_by = [Album.sort_order.desc(), Album.updated_at.desc()]
+    else:
+        # 用户选择的排序
+        sort_column = getattr(Album, sort_by, Album.updated_at)
+        if order == "desc":
+            order_by = [sort_column.desc()]
+        else:
+            order_by = [sort_column.asc()]
+    
+    # 计算偏移量
+    offset = (page - 1) * size
+    
+    # 查询相册
+    albums_result = await db.execute(
+        select(Album)
+        .order_by(*order_by)
+        .offset(offset)
+        .limit(size)
+    )
+    albums = albums_result.scalars().all()
+    
+    # 计算总数
+    total_result = await db.execute(select(func.count(Album.id)))
+    total = total_result.scalar()
+    
+    # 为每个相册添加照片数量
+    albums_data = []
+    for album in albums:
+        photo_count_result = await db.execute(
+            select(func.count(Photo.id)).where(Photo.album_id == album.id)
+        )
+        photo_count = photo_count_result.scalar() or 0
+        
+        album_data = {
+            "id": album.id,
+            "name": album.name,
+            "description": album.description,
+            "cover_image": fix_cover_image_url(album.cover_image),
+            "sort_order": album.sort_order,
+            "photo_count": photo_count,
+            "created_at": album.created_at,
+            "updated_at": album.updated_at
+        }
+        albums_data.append(album_data)
+    
+    return {
+        "items": albums_data,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size
+    }
+
+
+@router.get("/{album_id}", response_model=AlbumDetailResponse, summary="获取相册详情")
+async def get_album_detail(album_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    获取相册详情，包括相册信息和照片列表
+    
+    - **album_id**: 相册ID
+    """
+    # 获取相册
+    album_result = await db.execute(
+        select(Album).where(Album.id == album_id)
+    )
+    album = album_result.scalar_one_or_none()
+    
+    if not album:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="相册不存在"
+        )
+    
+    # 获取该相册下的所有照片，使用默认排序（自定义排序优先）
+    photos_result = await db.execute(
+        select(Photo)
+        .where(Photo.album_id == album_id)
+        .order_by(Photo.sort_order.desc(), Photo.created_at.desc())
+    )
+    photos = photos_result.scalars().all()
+    
+    # 如果相册没有封面且有照片，自动设置第一张照片为封面
+    if not album.cover_image and photos:
+        from .photos import photo_to_response
+        first_photo = photos[0]
+        album.cover_image = photo_to_response(first_photo).url
+        await db.commit()
+    
+    # 计算照片数量
+    photo_count = len(photos)
+    
+    return AlbumDetailResponse(
+        id=album.id,
+        name=album.name,
+        description=album.description,
+        cover_image=fix_cover_image_url(album.cover_image),
+        sort_order=album.sort_order,
+        photo_count=photo_count,
+        created_at=album.created_at,
+        updated_at=album.updated_at,
+        photos=[photo_to_response(photo) for photo in photos]
+    )
+
+
+@router.post("/", response_model=AlbumResponse, summary="创建相册")
+async def create_album(
+    album_data: AlbumCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    创建新相册
+    
+    - **name**: 相册名称（必填）
+    - **description**: 相册描述（可选）
+    """
+    # 获取当前最大的sort_order，新相册排在最前面
+    max_sort_result = await db.execute(select(func.max(Album.sort_order)))
+    max_sort = max_sort_result.scalar() or 0
+    
+    # 创建相册
+    album = Album(
+        name=album_data.name,
+        description=album_data.description,
+        sort_order=max_sort + 1
+    )
+    
+    db.add(album)
+    await db.commit()
+    await db.refresh(album)
+    
+    return await get_album_with_photo_count(db, album)
+
+
+@router.put("/{album_id}", response_model=AlbumResponse, summary="更新相册")
+async def update_album(
+    album_id: int,
+    album_data: AlbumUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    更新相册信息
+    
+    - **album_id**: 相册ID
+    - **name**: 相册名称（可选）
+    - **description**: 相册描述（可选）
+    """
+    # 检查相册是否存在
+    album_result = await db.execute(
+        select(Album).where(Album.id == album_id)
+    )
+    album = album_result.scalar_one_or_none()
+    
+    if not album:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="相册不存在"
+        )
+    
+    # 更新字段
+    update_data = album_data.dict(exclude_unset=True)
+    if update_data:
+        await db.execute(
+            update(Album)
+            .where(Album.id == album_id)
+            .values(**update_data)
+        )
+        await db.commit()
+        await db.refresh(album)
+    
+    return await get_album_with_photo_count(db, album)
+
+
+@router.delete("/{album_id}", response_model=MessageResponse, summary="删除相册")
+async def delete_album(
+    album_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    删除相册（包括其中的所有照片）
+    
+    - **album_id**: 相册ID
+    """
+    # 检查相册是否存在
+    album_result = await db.execute(
+        select(Album).where(Album.id == album_id)
+    )
+    album = album_result.scalar_one_or_none()
+    
+    if not album:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="相册不存在"
+        )
+    
+    # 删除相册中的所有照片
+    await db.execute(delete(Photo).where(Photo.album_id == album_id))
+    
+    # 删除相册
+    await db.execute(delete(Album).where(Album.id == album_id))
+    await db.commit()
+    
+    return MessageResponse(message=f"相册 '{album.name}' 已删除")
+
+
+@router.put("/{album_id}/sort", response_model=AlbumResponse)
+async def update_album_sort(
+    album_id: int, 
+    sort_order: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """更新相册排序"""
+    result = await db.execute(select(Album).where(Album.id == album_id))
+    album = result.scalar_one_or_none()
+    
+    if not album:
+        raise HTTPException(status_code=404, detail="相册不存在")
+    
+    album.sort_order = sort_order
+    await db.commit()
+    await db.refresh(album)
+    
+    # 获取照片数量
+    photo_count_result = await db.execute(
+        select(func.count(Photo.id)).where(Photo.album_id == album.id)
+    )
+    photo_count = photo_count_result.scalar() or 0
+    
+    return {
+        "id": album.id,
+        "name": album.name,
+        "description": album.description,
+        "cover_image": fix_cover_image_url(album.cover_image),
+        "sort_order": album.sort_order,
+        "photo_count": photo_count,
+        "created_at": album.created_at,
+        "updated_at": album.updated_at
+    } 

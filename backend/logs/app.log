@@ -1,0 +1,43 @@
+[启动] 小宇相册 API 服务启动中...
+2025-06-01 16:47:35,495 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-06-01 16:47:35,495 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("albums")
+2025-06-01 16:47:35,495 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-06-01 16:47:35,496 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("photos")
+2025-06-01 16:47:35,496 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-06-01 16:47:35,496 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2025-06-01 16:47:35,496 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-06-01 16:47:35,496 INFO sqlalchemy.engine.Engine COMMIT
+[数据库] 数据库初始化完成
+2025-06-01 16:47:35,497 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-06-01 16:47:35,500 INFO sqlalchemy.engine.Engine SELECT albums.id, albums.name, albums.description, albums.cover_image, albums.sort_order, albums.created_at, albums.updated_at 
+FROM albums
+2025-06-01 16:47:35,500 INFO sqlalchemy.engine.Engine [generated in 0.00011s] ()
+2025-06-01 16:47:35,501 INFO sqlalchemy.engine.Engine ROLLBACK
+[地址] 服务地址: http://localhost:8000
+[文档] API 文档: http://localhost:8000/docs
+[管理] 管理后台: http://localhost:8000/admin/
+[时间] 启动时间: 2025-06-01 16:47:35
+[关闭] 小宇相册 API 服务已关闭
+[启动] 小宇相册 API 服务启动中...
+2025-06-01 16:47:48,577 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-06-01 16:47:48,577 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("albums")
+2025-06-01 16:47:48,577 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-06-01 16:47:48,577 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("photos")
+2025-06-01 16:47:48,577 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-06-01 16:47:48,578 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2025-06-01 16:47:48,578 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-06-01 16:47:48,578 INFO sqlalchemy.engine.Engine COMMIT
+[数据库] 数据库初始化完成
+2025-06-01 16:47:48,579 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-06-01 16:47:48,581 INFO sqlalchemy.engine.Engine SELECT albums.id, albums.name, albums.description, albums.cover_image, albums.sort_order, albums.created_at, albums.updated_at 
+FROM albums
+2025-06-01 16:47:48,582 INFO sqlalchemy.engine.Engine [generated in 0.00011s] ()
+2025-06-01 16:47:48,582 INFO sqlalchemy.engine.Engine ROLLBACK
+[地址] 服务地址: http://localhost:8000
+[文档] API 文档: http://localhost:8000/docs
+[管理] 管理后台: http://localhost:8000/admin/
+[时间] 启动时间: 2025-06-01 16:47:48
+INFO:     127.0.0.1:57435 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57557 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57688 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:57801 - "GET /api/auth/info HTTP/1.1" 200 OK
